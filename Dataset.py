@@ -1,3 +1,6 @@
+# Developed by winlaic in Wuhan University.
+# 2019.11.21 03:38
+
 from torch.utils.data import Dataset
 import torch, numpy as np
 import os
