@@ -18,7 +18,8 @@ from .Dataset import IQADataset
 listt = lambda l: list(map(list, zip(*l)))
 
 class LIVE2016(IQADataset):
-
+    INDEX_TYPE = 'DMOS'
+    INDEX_RANGE = np.array([0, 100])
     def generate_metafile(self, metafile_path):
         dataset_dir = self.dataset_dir
         distoration_classes = ['jp2k', 'jpeg', 'wn', 'gblur', 'fastfading']

@@ -20,7 +20,8 @@ get_index = lambda x: re.findall(r'^([iI]\d{2})_(\d{2})_(\d).\w{3}', x)
 
 
 class TID2013(IQADataset):
-
+    INDEX_TYPE = 'MOS'
+    INDEX_RANGE = np.array([0.0, 9.0])
     def generate_metafile(self, metafile_path):
         dataset_dir = self.dataset_dir
         original_imgs = os.listdir(join(dataset_dir, 'reference_images'))
