@@ -3,6 +3,8 @@ from collections import namedtuple
 from scipy.stats import spearmanr, pearsonr, kendalltau
 import os
 from os.path import join
+import numpy as np
+from PIL import Image
 
 vector = namedtuple('vector', ['x', 'y'])
 
@@ -30,7 +32,8 @@ class LazyRandomCrop():
         self.position = None
 
 
-    def __call__(self, img):
+    def __call__(self, img: Image):
+        img = np.array(img)
         if self.prevous_shape is None:
             self.prevous_shape = vector._make(img.shape)
             self.position = vector(randint(0, self.prevous_shape.x - self.size.x), randint(0, self.prevous_shape.y - self.size.y))
@@ -40,7 +43,7 @@ class LazyRandomCrop():
             self.position = vector(randint(0, self.prevous_shape.x - self.size.x), randint(0, self.prevous_shape.y - self.size.y))
         position_lu = self.position
         position_rd = vector(position_lu.x + self.size.x, position_lu.y + self.size.y)
-        return img[position_lu.x: position_rd.x, position_lu.y: position_rd.y]
+        return Image.fromarray(img[position_lu.x: position_rd.x, position_lu.y: position_rd.y])
 
     def __repr__(self):
         return '{}: Crop Size={}, Previous shape={}, Crop position={}'.format(self.__class__.__name__, self.size, self.prevous_shape, self.position)
