@@ -10,7 +10,8 @@ import cv2 as cv
 from PIL import Image
 import pickle
 from pandas import DataFrame
-from torchvision.transforms import RandomCrop, Compose, RandomHorizontalFlip
+from torchvision.transforms import Compose, RandomHorizontalFlip
+from .utils import LazyRandomCrop
 
 '''
 Metadata should have these information.
@@ -31,13 +32,15 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False):
+    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
         self.PARTITION_FILE = self.__class__.__name__ + '_partition.pth'
         self.dataset_dir = dataset_dir
         self.train_ratio = train_ratio
         self.augment = True
+        self.require_ref = require_ref
+        self.random_cropper = None
 
         self.index_remapped = False
         self.__remap_function = lambda x: x
@@ -49,7 +52,8 @@ class IQADataset(Dataset):
 
         augment_transforms = []
         if crop_shape is not None:
-            augment_transforms.append(RandomCrop(crop_shape))
+            self.random_cropper = LazyRandomCrop(crop_shape)
+            augment_transforms.append(self.random_cropper)
         if random_flip:
             augment_transforms.append(RandomHorizontalFlip(p=0.5))
         self.augment_transforms = Compose(augment_transforms)
@@ -128,7 +132,8 @@ class IQADataset(Dataset):
 
             self.__data_frame = self.__data_frame.append(ref_imgs_data_frame, ignore_index=True, sort=False)
 
-    def preprocess(self, img):
+    @staticmethod
+    def preprocess(img):
         img = img.astype(np.float32)/255.0
         img = img.transpose(2, 0, 1)
         img = torch.tensor(img)
@@ -137,18 +142,35 @@ class IQADataset(Dataset):
     def __getitem__(self, index):
         if index >= len(self): raise IndexError
         meta = self.__data_frame[index:index+1]
-        img = cv.imread(join(self.dataset_dir, meta.DIS_PATH.to_list()[0]))
-        img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-        img = Image.fromarray(img)
-        if (self._phase == 'train') and self.augment:
-            img = self.augment_transforms(img)
-        img = np.array(img)
+
+        def load_img(path):
+            img = cv.imread(path)
+            img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
+            if (self._phase == 'train') and self.augment:
+                img = self.augment_transforms(img)
+            img = np.array(img)
+            return img
+        
+        img = load_img(join(self.dataset_dir, meta.DIS_PATH.to_list()[0]))
         img = self.preprocess(img)
+        if self.require_ref:
+            img_ref = load_img(join(self.dataset_dir, meta.REF_PATH.to_list()[0]))
+            img_ref = self.preprocess(img_ref)
+
+
         label = torch.tensor(meta.INDEX.to_list()[0])
         if self.index_remapped:
             label = self.__remap_function(label)
         dis_type = meta.TYPE.to_list()[0]
-        return img, label, dis_type
+
+        if self.random_cropper: self.random_cropper.reset()
+
+        if self.require_ref:
+            return img, img_ref, label, dis_type
+        else:
+            return img, label, dis_type
+            
 
         
     def __len__(self):
