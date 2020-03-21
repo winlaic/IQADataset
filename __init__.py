@@ -4,3 +4,4 @@
 from .TID2013 import TID2013
 from .LIVE2016 import LIVE2016
 from .LIVEChallengeDB import LIVEChallengeDB
+from .utils import calculate_iqa_performace

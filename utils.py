@@ -1,5 +1,6 @@
 from random import randint
 from collections import namedtuple
+from scipy.stats import spearmanr, pearsonr, kendalltau
 
 vector = namedtuple('vector', ['x', 'y'])
 
@@ -31,7 +32,14 @@ class LazyRandomCrop():
     def __repr__(self):
         return '{}: Crop Size={}, Previous shape={}, Crop position={}'.format(self.__class__.__name__, self.size, self.prevous_shape, self.position)
 
+IQAPerformance = namedtuple('IQAPerformance', ['SROCC', 'PLCC', 'KROCC'])
 
+def calculate_iqa_performace(input, target):
+    return IQAPerformance(
+        SROCC = float(spearmanr(input, target)[0]),
+        PLCC  = float(pearsonr(input, target)[0]),
+        KROCC = float(kendalltau(input, target)[0])
+    )
 
         
 
