@@ -12,6 +12,8 @@ import pickle
 from pandas import DataFrame
 from torchvision.transforms import Compose, RandomHorizontalFlip
 from .utils import LazyRandomCrop
+from os.path import join
+from .utils import ensuredir
 
 '''
 Metadata should have these information.
@@ -32,7 +34,7 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False):
+    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False, metadata_path='metadata'):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
         self.PARTITION_FILE = self.__class__.__name__ + '_partition.pth'
@@ -41,6 +43,7 @@ class IQADataset(Dataset):
         self.augment = True
         self.require_ref = require_ref
         self.random_cropper = None
+        self.metadata_path = metadata_path
 
         self.index_remapped = False
         self.__remap_function = lambda x: x
@@ -57,19 +60,21 @@ class IQADataset(Dataset):
         if random_flip:
             augment_transforms.append(RandomHorizontalFlip(p=0.5))
         self.augment_transforms = Compose(augment_transforms)
+        
+        ensuredir(self.metadata_path)
 
-        if not os.path.exists(self.METAFILE):
-            self.generate_metafile(self.METAFILE)
-        self.metadata = pd.read_pickle(self.METAFILE)
+        if not os.path.exists(join(self.metadata_path, self.METAFILE)):
+            self.generate_metafile(join(self.metadata_path, self.METAFILE))
+        self.metadata = pd.read_pickle(join(self.metadata_path, self.METAFILE))
 
-        if not os.path.exists(self.PARTITION_FILE):
-            self.divide_dataset(self.train_ratio, self.PARTITION_FILE)
-        self.partition_info = pickle.load(open(self.PARTITION_FILE, 'rb'))
+        if not os.path.exists(join(self.metadata_path, self.PARTITION_FILE)):
+            self.divide_dataset(self.train_ratio, join(self.metadata_path, self.PARTITION_FILE))
+        self.partition_info = pickle.load(open(join(self.metadata_path, self.PARTITION_FILE), 'rb'))
 
         if self.partition_info['ratio'] != train_ratio:
             print('Warning: Partition file regenerated.')
-            self.divide_dataset(self.train_ratio, self.PARTITION_FILE)
-            self.partition_info = pickle.load(open(self.PARTITION_FILE, 'rb'))
+            self.divide_dataset(self.train_ratio, join(self.metadata_path, self.PARTITION_FILE))
+            self.partition_info = pickle.load(open(join(self.metadata_path, self.PARTITION_FILE), 'rb'))
 
         self.train()
 

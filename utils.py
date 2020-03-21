@@ -1,8 +1,21 @@
 from random import randint
 from collections import namedtuple
 from scipy.stats import spearmanr, pearsonr, kendalltau
+import os
+from os.path import join
 
 vector = namedtuple('vector', ['x', 'y'])
+
+
+def ensuredir(*args, file_name=None):
+    path = join(*args)
+    if not os.path.exists(path): 
+        os.makedirs(path)
+    elif not os.path.isdir(path):
+        raise FileExistsError
+    if file_name is not None:
+        path = join(path, file_name)
+    return path
 
 class LazyRandomCrop():
     """Crop position does not change untile "reset()" called or shape of input image changed.
