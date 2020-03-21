@@ -35,11 +35,11 @@ class LazyRandomCrop():
     def __call__(self, img: Image):
         img = np.array(img)
         if self.prevous_shape is None:
-            self.prevous_shape = vector._make(img.shape)
+            self.prevous_shape = vector._make(img.shape[:-1])
             self.position = vector(randint(0, self.prevous_shape.x - self.size.x), randint(0, self.prevous_shape.y - self.size.y))
-        elif self.prevous_shape != img.shape:
+        elif self.prevous_shape != img.shape[:-1]:
             print('LazyRandomCropper: Input image shape changed without calling "reset()".')
-            self.prevous_shape = vector(*img.shape)
+            self.prevous_shape = vector(*img.shape[:-1])
             self.position = vector(randint(0, self.prevous_shape.x - self.size.x), randint(0, self.prevous_shape.y - self.size.y))
         position_lu = self.position
         position_rd = vector(position_lu.x + self.size.x, position_lu.y + self.size.y)
