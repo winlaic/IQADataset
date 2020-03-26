@@ -82,7 +82,8 @@ class IQADataset(Dataset):
                 self.generate_datapack()
             else:
                 print('Loading datapack...', end = '', flush=True)
-                self.datapack = pickle.load(join(self.datapack_path, self.DATAPACK))
+                with open(join(self.datapack_path, self.DATAPACK), 'rb') as f:
+                    self.datapack = pickle.load(f)
                 print('Done.')
 
         if self.partition_info['ratio'] != train_ratio:
