@@ -131,7 +131,8 @@ class IQADataset(Dataset):
             img = Image.fromarray(img)
             datapack[ref] = img
         print('Dumping...', end='', flush=True)
-        pickle.dump(datapack, join(self.datapack_path, self.DATAPACK))
+        with open(join(self.datapack_path, self.DATAPACK), 'wb') as f:
+            pickle.dump(datapack, f)
         print('Done')
         self.datapack = datapack
     
