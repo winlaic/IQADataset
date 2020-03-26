@@ -34,7 +34,7 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False, metadata_path='metadata'):
+    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False, using_data_pack=False, datapack_path='datapacks', metadata_path='metadata'):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
         self.PARTITION_FILE = self.__class__.__name__ + '_partition.pth'
@@ -44,6 +44,10 @@ class IQADataset(Dataset):
         self.require_ref = require_ref
         self.random_cropper = None
         self.metadata_path = metadata_path
+        self.using_datapack = using_data_pack
+        self.datapack_path = datapack_path
+        self.DATAPACK = self.__class__.__name__ + '.pkl'
+        self.datapack = None
 
         self.index_remapped = False
         self.__remap_k = 1
@@ -71,6 +75,15 @@ class IQADataset(Dataset):
         if not os.path.exists(join(self.metadata_path, self.PARTITION_FILE)):
             self.divide_dataset(self.train_ratio, join(self.metadata_path, self.PARTITION_FILE))
         self.partition_info = pickle.load(open(join(self.metadata_path, self.PARTITION_FILE), 'rb'))
+
+        if self.using_datapack:
+            ensuredir(self.datapack_path)
+            if not os.path.exists(join(self.datapack_path, self.DATAPACK)):
+                self.generate_datapack()
+            else:
+                print('Loading datapack...', end = '', flush=True)
+                self.datapack = pickle.load(join(self.datapack_path, self.DATAPACK))
+                print('Done.')
 
         if self.partition_info['ratio'] != train_ratio:
             print('Warning: Partition file regenerated.')
@@ -100,6 +113,27 @@ class IQADataset(Dataset):
     def all(self, **kwargs):
         self._phase = 'all'
         self.generate_data_frame(**kwargs)
+
+    def generate_datapack(self):
+        datapack = {}
+        print('Generating datapack...')
+        total = len(self.metadata)
+        for i, row in self.metadata.iterrows():
+            print('{}%'.format(int(i/total*100.0)), end='\r', flush=True)
+            img = cv.imread(join(self.dataset_dir, row.DIS_PATH))
+            img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
+            datapack[row.DIS_PATH] = img
+        ref_file_paths = self.metadata.REF_PATH.unique().tolist()
+        for ref in ref_file_paths:
+            img = cv.imread(join(self.dataset_dir, ref))
+            img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
+            datapack[ref] = img
+        print('Dumping...', end='', flush=True)
+        pickle.dump(datapack, join(self.datapack_path, self.DATAPACK))
+        print('Done')
+        self.datapack = datapack
     
 
     def generate_metafile(self, metafile_path):
@@ -152,19 +186,22 @@ class IQADataset(Dataset):
         if index >= len(self): raise IndexError
         meta = self.__data_frame[index:index+1]
 
-        def load_img(path):
-            img = cv.imread(path)
-            img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-            img = Image.fromarray(img)
+        def load_img(dir, path, datapack=None):
+            if datapack is not None:
+                img = self.datapack[path]
+            else:
+                img = cv.imread(path)
+                img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+                img = Image.fromarray(img)
             if (self._phase == 'train') and self.augment:
                 img = self.augment_transforms(img)
             img = np.array(img)
             return img
         
-        img = load_img(join(self.dataset_dir, meta.DIS_PATH.to_list()[0]))
+        img = load_img(self.dataset_dir, meta.DIS_PATH.to_list()[0], self.datapack)
         img = self.preprocess(img)
         if self.require_ref:
-            img_ref = load_img(join(self.dataset_dir, meta.REF_PATH.to_list()[0]))
+            img_ref = load_img(self.dataset_dir, meta.REF_PATH.to_list()[0], self.datapack)
             img_ref = self.preprocess(img_ref)
 
 
