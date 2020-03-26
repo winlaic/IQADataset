@@ -13,10 +13,9 @@ import pandas as pd
 from pandas import DataFrame
 
 from .Dataset import IQADataset
+from .utils import listt
 
-listt = lambda l: list(map(list, zip(*l)))
-get_index = lambda x: re.findall(r'^([iI]\d{2})_(\d{2})_(\d).\w{3}', x)
-
+def get_index(x): return re.findall(r'^([iI]\d{2})_(\d{2})_(\d).\w{3}', x)
 
 
 class TID2013(IQADataset):

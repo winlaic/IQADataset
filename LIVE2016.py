@@ -14,8 +14,11 @@ from pandas import DataFrame
 from scipy.io import loadmat
 
 from .Dataset import IQADataset
+from .utils import listt
 
-listt = lambda l: list(map(list, zip(*l)))
+def lambda_0(x): return int(x[1].split(sep='.')[0][3:])
+def lambda_1(x): return join('refimgs', x)
+def lambda_2(x): return x[0]
 
 class LIVE2016(IQADataset):
     INDEX_TYPE = 'DMOS'
@@ -26,7 +29,6 @@ class LIVE2016(IQADataset):
         distoration_image_number = [227, 233, 174, 174, 174]
         # reference_imgs = [item for item in os.listdir(join(dataset_dir, 'refimgs')) if item.split(sep='.')[-1] == 'bmp']
 
-        listt = lambda x: list(map(list, zip(*x)))
         dmos_of_distoration_types = []
         is_original_image = []
         labels = loadmat(join(dataset_dir, 'dmos.mat'))
@@ -43,19 +45,20 @@ class LIVE2016(IQADataset):
                 info = list(csv.reader(f, delimiter=' '))
                 info = [iitem for iitem in info if len(iitem) != 0]
                 info = listt(listt(info)[0:2])
-                info.sort(key=lambda x: int(x[1].split(sep='.')[0][3:]))
+                info.sort(key=lambda_0)
                 info = listt(info)
                 info.append(dmos_of_distoration_types[i])
                 info.append(is_original_image[i])
-                info.insert(1, list(map(lambda x: join('refimgs', x), info[0])))
-                info[2] = list(map(lambda x: join(distoration_classes[i], x), info[2]))
+                info.insert(1, list(map(lambda_1, info[0])))
+                tmp = [join(distoration_classes[i], x) for x in info[2]]
+                info[2] = tmp
                 info.insert(1, [item for _ in range(len(info[0]))])
                 info = listt(info)
                 infos += info
 
 
         infos_distored_only = [item for item in infos if item[-1]==0]
-        infos_distored_only.sort(key=lambda x: x[0])
+        infos_distored_only.sort(key=lambda_2)
         infos_distored_only = listt(infos_distored_only)
 
         meta_base = DataFrame()

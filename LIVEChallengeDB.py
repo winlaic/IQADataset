@@ -4,6 +4,8 @@ import numpy as np
 from pandas import DataFrame
 from os.path import join
 
+def lambda_0(x): return str(x[0][0])
+def lambda_1(x): return 'for_train' if x[0] == 't' else 'real_world'
 
 class LIVEChallengeDB(IQADataset):
     INDEX_TYPE = 'MOS'
@@ -14,8 +16,8 @@ class LIVEChallengeDB(IQADataset):
         MOS_META = 'Data/AllMOS_release.mat'
         STD_META = 'Data/AllStdDev_release.mat'
         img_names = loadmat(join(DATABASE_DIR, IMAGE_META))['AllImages_release']
-        img_names = list(map(lambda x: str(x[0][0]), img_names))
-        img_types = list(map(lambda x: 'for_train' if x[0] == 't' else 'real_world', img_names))
+        img_names = list(map(lambda_0, img_names))
+        img_types = list(map(lambda_1, img_names))
         img_pathes = [join('Images', item) if item[0] != 't' else join('Images', 'trainingImages', item) for item in img_names]
         img_dummy_refs = ['dummy_' + ''.join(item.split('.')[:-1]) for item in img_names]
                 

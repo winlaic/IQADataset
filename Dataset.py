@@ -46,7 +46,8 @@ class IQADataset(Dataset):
         self.metadata_path = metadata_path
 
         self.index_remapped = False
-        self.__remap_function = lambda x: x
+        self.__remap_k = 1
+        self.__remap_c = 0
         
         assert self.INDEX_TYPE == 'MOS' or self.INDEX_TYPE == 'DMOS', 'Index type error.'
         assert isinstance(self.INDEX_RANGE, np.ndarray) and \
@@ -78,11 +79,14 @@ class IQADataset(Dataset):
 
         self.train()
 
+    @staticmethod
+    def __remap_function(x):
+        return self.__remap_k * x + self.__remap_c
+
     def remap_index(self, low, high):
         self.index_remapped = True
-        a = (high - low) / (self.INDEX_RANGE[1] - self.INDEX_RANGE[0])
-        c = low - self.INDEX_RANGE[0] * a
-        self.__remap_function = lambda x: a*x + c
+        self.__remap_k = (high - low) / (self.INDEX_RANGE[1] - self.INDEX_RANGE[0])
+        self.__remap_c = low - self.INDEX_RANGE[0] * self.__remap_k
 
     def train(self, augment=True, **kwargs):
         self._phase = 'train'

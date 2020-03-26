@@ -8,6 +8,7 @@ from PIL import Image
 
 vector = namedtuple('vector', ['x', 'y'])
 
+def listt(l): return list(map(list, zip(*l)))
 
 def ensuredir(*args, file_name=None):
     path = join(*args)
