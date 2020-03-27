@@ -34,12 +34,13 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, train_ratio=0.8, crop_shape=None, random_flip=False, require_ref=False, using_data_pack=False, datapack_path='datapacks', metadata_path='metadata'):
+    def __init__(self, dataset_dir, n_fold=5, crop_shape=None, random_flip=False, require_ref=False, using_data_pack=False, datapack_path='datapacks', metadata_path='metadata'):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
         self.PARTITION_FILE = self.__class__.__name__ + '_partition.pth'
         self.dataset_dir = dataset_dir
-        self.train_ratio = train_ratio
+        assert isinstance(n_fold, int) and n_fold >= 2
+        self.n_fold = n_fold
         self.augment = True
         self.require_ref = require_ref
         self.random_cropper = None
@@ -73,8 +74,9 @@ class IQADataset(Dataset):
         self.metadata = pd.read_pickle(join(self.metadata_path, self.METAFILE))
 
         if not os.path.exists(join(self.metadata_path, self.PARTITION_FILE)):
-            self.divide_dataset(self.train_ratio, join(self.metadata_path, self.PARTITION_FILE))
+            self.divide_dataset(self.n_fold, join(self.metadata_path, self.PARTITION_FILE))
         self.partition_info = pickle.load(open(join(self.metadata_path, self.PARTITION_FILE), 'rb'))
+        assert isinstance(self.partition_info, list), 'Partition info must be list.'
 
         if self.using_datapack:
             ensuredir(self.datapack_path)
@@ -86,15 +88,15 @@ class IQADataset(Dataset):
                     self.datapack = pickle.load(f)
                 print('Done.')
 
-        if self.partition_info['ratio'] != train_ratio:
+
+        if len(self.partition_info) != self.n_fold:
             print('Warning: Partition file regenerated.')
-            self.divide_dataset(self.train_ratio, join(self.metadata_path, self.PARTITION_FILE))
+            self.divide_dataset(self.n_fold, join(self.metadata_path, self.PARTITION_FILE))
             self.partition_info = pickle.load(open(join(self.metadata_path, self.PARTITION_FILE), 'rb'))
 
         self.train()
 
-    @staticmethod
-    def __remap_function(x):
+    def __remap_function(self, x):
         return self.__remap_k * x + self.__remap_c
 
     def remap_index(self, low, high):
@@ -102,14 +104,24 @@ class IQADataset(Dataset):
         self.__remap_k = (high - low) / (self.INDEX_RANGE[1] - self.INDEX_RANGE[0])
         self.__remap_c = low - self.INDEX_RANGE[0] * self.__remap_k
 
-    def train(self, augment=True, **kwargs):
+    def train(self, not_on=-1, augment=True, **kwargs):
         self._phase = 'train'
         self.augment = augment
-        self.generate_data_frame(deprecated_images = self.partition_info['val'], **kwargs)
+        deprecated_images = self.partition_info[not_on]
+        self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
     
-    def eval(self, **kwargs):
+    def eval(self, on=-1, **kwargs):
         self._phase = 'eval'
-        self.generate_data_frame(deprecated_images = self.partition_info['train'], **kwargs)
+        deprecated_images = []
+        if on == -1:
+            for item in self.partition_info[:-1]:
+                deprecated_images += item
+        else:
+            for item in self.partition_info[:on]:
+                deprecated_images += item
+            for item in self.partition_info[on+1:]:
+                deprecated_images += item
+        self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
 
     def all(self, **kwargs):
         self._phase = 'all'
@@ -148,18 +160,19 @@ class IQADataset(Dataset):
         """
         raise NotImplementedError
 
-    def divide_dataset(self, divide_ratio, divide_metafile_path):
+    def divide_dataset(self, n_fold, divide_metafile_path):
         ref_imgs = self.metadata['REF'].unique()
         n_all = len(ref_imgs)
-        partition_dict = {}
-        partition_dict['ratio'] = divide_ratio
-        n_train = int(n_all * divide_ratio)
-        # n_val = n_all - n_train
+        n_per_fold = n_all // n_fold
+
         indexes = np.random.choice(n_all, n_all, replace=False)
-        partition_dict['train'] = ref_imgs[indexes[:n_train]]
-        partition_dict['val'] = ref_imgs[indexes[n_train:]]
+        partitioned_indexes = np.split(indexes, range(n_per_fold, n_all, n_per_fold))
+        partition_list = []
+        for incide in partitioned_indexes:
+            partition_list.append(ref_imgs[incide].tolist())
+        
         with open(divide_metafile_path, 'wb') as f:
-            pickle.dump(partition_dict, f)
+            pickle.dump(partition_list, f)
 
     def generate_data_frame(self, deprecated_types = [], deprecated_images = [], include_ref=False):
         self.__deprecated_types = deprecated_types
