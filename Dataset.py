@@ -41,6 +41,7 @@ class IQADataset(Dataset):
         self.dataset_dir = dataset_dir
         assert isinstance(n_fold, int) and n_fold >= 2
         self.n_fold = n_fold
+        self.i_fold = -1
         self.augment = True
         self.require_ref = require_ref
         self.random_cropper = None
@@ -104,15 +105,28 @@ class IQADataset(Dataset):
         self.__remap_k = (high - low) / (self.INDEX_RANGE[1] - self.INDEX_RANGE[0])
         self.__remap_c = low - self.INDEX_RANGE[0] * self.__remap_k
 
-    def train(self, not_on=-1, augment=True, **kwargs):
+    def set_i_fold(self, i):
+        """Use fold i as evaluating part.
+        """
+        assert i >= 0 and i < self.n_fold
+        self.i_fold = i
+
+    def train(self, not_on=None, augment=True, **kwargs):
         self._phase = 'train'
         self.augment = augment
+        if not_on is None:
+            not_on = self.i_fold
+
         deprecated_images = self.partition_info[not_on]
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
     
-    def eval(self, on=-1, **kwargs):
+    def eval(self, on=None, **kwargs):
         self._phase = 'eval'
         deprecated_images = []
+
+        if not_on is None:
+            not_on = self.i_fold
+
         if on == -1:
             for item in self.partition_info[:-1]:
                 deprecated_images += item
