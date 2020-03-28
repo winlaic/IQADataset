@@ -168,8 +168,13 @@ class IQADataset(Dataset):
         indexes = np.random.choice(n_all, n_all, replace=False)
         partitioned_indexes = np.split(indexes, range(n_per_fold, n_all, n_per_fold))
         partition_list = []
-        for incide in partitioned_indexes:
-            partition_list.append(ref_imgs[incide].tolist())
+        for i, incide in enumerate(partitioned_indexes):
+            if i != self.n_fold:
+                partition_list.append(ref_imgs[incide].tolist())
+            else:
+                last_part = ref_imgs[incide].tolist()
+                for j, single in enumerate(last_part):
+                    partition_list[j].append(single)
         
         with open(divide_metafile_path, 'wb') as f:
             pickle.dump(partition_list, f)
@@ -205,7 +210,7 @@ class IQADataset(Dataset):
             if datapack is not None:
                 img = self.datapack[path]
             else:
-                img = cv.imread(path)
+                img = cv.imread(join(dir, path))
                 img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
                 img = Image.fromarray(img)
             if (self._phase == 'train') and self.augment:
@@ -236,3 +241,4 @@ class IQADataset(Dataset):
         
     def __len__(self):
         return len(self.__data_frame)
+
