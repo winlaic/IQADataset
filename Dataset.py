@@ -124,8 +124,8 @@ class IQADataset(Dataset):
         self._phase = 'eval'
         deprecated_images = []
 
-        if not_on is None:
-            not_on = self.i_fold
+        if on is None:
+            on = self.i_fold
 
         if on == -1:
             for item in self.partition_info[:-1]:
