@@ -42,7 +42,7 @@ class IQADataset(Dataset):
         assert isinstance(n_fold, int) and n_fold >= 2
         self.n_fold = n_fold
         self.i_fold = -1
-        self.augment = True
+        self.use_augment = True # When true, argument transforms will be applied before output.
         self.require_ref = require_ref
         self.random_cropper = None
         self.metadata_path = metadata_path
@@ -111,17 +111,18 @@ class IQADataset(Dataset):
         assert i >= 0 and i < self.n_fold
         self.i_fold = i
 
-    def train(self, not_on=None, augment=True, **kwargs):
+    def train(self, not_on=None, use_augment=True, **kwargs):
         self._phase = 'train'
-        self.augment = augment
+        self.use_augment = use_augment
         if not_on is None:
             not_on = self.i_fold
 
         deprecated_images = self.partition_info[not_on]
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
     
-    def eval(self, on=None, **kwargs):
+    def eval(self, use_augment=False, on=None, **kwargs):
         self._phase = 'eval'
+        self.use_augment = use_augment
         deprecated_images = []
 
         if on is None:
@@ -137,8 +138,9 @@ class IQADataset(Dataset):
                 deprecated_images += item
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
 
-    def all(self, **kwargs):
+    def all(self, use_augment=False, **kwargs):
         self._phase = 'all'
+        self.use_augment = use_augment
         self.generate_data_frame(**kwargs)
 
     def generate_datapack(self):
@@ -227,7 +229,7 @@ class IQADataset(Dataset):
                 img = cv.imread(join(dir, path))
                 img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
                 img = Image.fromarray(img)
-            if (self._phase == 'train') and self.augment:
+            if self.use_augment:
                 img = self.augment_transforms(img)
             img = np.array(img)
             return img
