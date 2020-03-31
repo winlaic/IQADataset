@@ -14,15 +14,8 @@ from torchvision.transforms import Compose, RandomHorizontalFlip
 from .utils import LazyRandomCrop
 from os.path import join
 from .utils import ensuredir
+from itertools import chain
 
-'''
-Metadata should have these information.
-0. Original image path.
-1. Target image path.
-2. Distoration type.
-3. MOS/DMOS
-4. Std.
-'''
 
 
 class IQADataset(Dataset):
@@ -73,6 +66,7 @@ class IQADataset(Dataset):
         if not os.path.exists(join(self.metadata_path, self.METAFILE)):
             self.generate_metafile(join(self.metadata_path, self.METAFILE))
         self.metadata = pd.read_pickle(join(self.metadata_path, self.METAFILE))
+        self.check_file_existance()
 
         if not os.path.exists(join(self.metadata_path, self.PARTITION_FILE)):
             self.divide_dataset(self.n_fold, join(self.metadata_path, self.PARTITION_FILE))
@@ -172,7 +166,9 @@ class IQADataset(Dataset):
         You should complete the following steps in this method:
         1. Construct a pandas DataFrame with at least these properties for each image.
             REF REF_PATH DIS_PATH TYPE INDEX
-        2. Before return, save the dataframe to 'metafile_path'.
+        2. Extra information:
+            LEVEL STD DIS
+        3. Before return, save the dataframe to 'metafile_path'.
         """
         raise NotImplementedError
 
@@ -217,6 +213,13 @@ class IQADataset(Dataset):
         img = img.transpose(2, 0, 1)
         img = torch.tensor(img)
         return img
+
+    def check_file_existance(self):
+        ref_imgs = self.metadata.REF_PATH.unique()
+        dis_imgs = self.metadata.DIS_PATH.to_list()
+        for item in chain(ref_imgs, dis_imgs):
+            assert os.path.exists(join(self.dataset_dir, item)), 'Image "{}" does not exist!'.format(item)
+
     
     def __getitem__(self, index):
         if index >= len(self): raise IndexError
