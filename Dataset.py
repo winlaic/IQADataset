@@ -27,7 +27,9 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, n_fold=5, crop_shape=None, random_flip=False, require_ref=False, using_data_pack=False, datapack_path='datapacks', metadata_path='metadata'):
+    def __init__(self, dataset_dir, n_fold=5, crop_shape=None, random_flip=False,
+                 require_ref=False, using_data_pack=False, datapack_path='datapacks',
+                 metadata_path='metadata', dead_types=None, dead_images=None):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
         self.PARTITION_FILE = self.__class__.__name__ + '_partition.pth'
@@ -43,6 +45,14 @@ class IQADataset(Dataset):
         self.datapack_path = datapack_path
         self.DATAPACK = self.__class__.__name__ + '.pkl'
         self.datapack = None
+        self.__dead_images = []
+        self.__dead_types = []
+        if dead_images is not None:
+            self.__dead_images += list(dead_images)
+        if dead_types is not None:
+            self.__dead_types += list(dead_types)
+
+
 
         self.index_remapped = False
         self.__remap_k = 1
@@ -113,6 +123,7 @@ class IQADataset(Dataset):
 
         deprecated_images = self.partition_info[not_on]
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
+
     
     def eval(self, use_augment=False, on=None, **kwargs):
         self._phase = 'eval'
@@ -191,11 +202,16 @@ class IQADataset(Dataset):
         with open(divide_metafile_path, 'wb') as f:
             pickle.dump(partition_list, f)
 
-    def generate_data_frame(self, deprecated_types = [], deprecated_images = [], include_ref=False):
-        self.__deprecated_types = deprecated_types
-        self.__deprecated_images = deprecated_images
+    def generate_data_frame(self, deprecated_types = tuple(), deprecated_images = tuple(), include_ref=False):
+
+        unused_images = list(deprecated_images) + list(self.__dead_images)
+        unused_types = list(deprecated_types) + list(self.__dead_types)
+
+        assert len(set(unused_types) - set(self.metadata.TYPE)) == 0, 'All deprecated types must be known!'
+        assert len(set(unused_images) - set(self.metadata.REF)) == 0, 'All deprecated images must be known!'
+
         self.__data_frame = self.metadata[
-            -(self.metadata.REF.isin(deprecated_images) | self.metadata.TYPE.isin(deprecated_types))]
+            -(self.metadata.REF.isin(unused_images) | self.metadata.TYPE.isin(unused_types))]
         if include_ref:
             ref_imgs_data_frame = DataFrame()
             ref_imgs_data_frame['DIS_PATH'] = self.__data_frame['REF_PATH'].unique()
@@ -203,7 +219,7 @@ class IQADataset(Dataset):
                 ref_imgs_data_frame['INDEX'] = np.min(self.INDEX_RANGE)
             elif self.INDEX_TYPE == 'MOS':
                 ref_imgs_data_frame['INDEX'] = np.max(self.INDEX_RANGE)
-            ref_imgs_data_frame['TYPE'] = 'pristine'
+            ref_imgs_data_frame['TYPE'] = 'PRISTINE'
 
             self.__data_frame = self.__data_frame.append(ref_imgs_data_frame, ignore_index=True, sort=False)
 
