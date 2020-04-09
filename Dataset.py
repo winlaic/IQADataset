@@ -234,6 +234,7 @@ class IQADataset(Dataset):
         ref_imgs = self.metadata.REF_PATH.unique()
         dis_imgs = self.metadata.DIS_PATH.to_list()
         for item in chain(ref_imgs, dis_imgs):
+            if item.startswith('dummy'): continue
             assert os.path.exists(join(self.dataset_dir, item)), 'Image "{}" does not exist!'.format(item)
 
     
