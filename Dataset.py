@@ -159,11 +159,13 @@ class IQADataset(Dataset):
             img = Image.fromarray(img)
             datapack[row.DIS_PATH] = img
         ref_file_paths = self.metadata.REF_PATH.unique().tolist()
-        for ref in ref_file_paths:
-            img = cv.imread(join(self.dataset_dir, ref))
-            img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-            img = Image.fromarray(img)
-            datapack[ref] = img
+        if ref_file_paths[0].startswith('dummy'): pass
+        else:
+            for ref in ref_file_paths:
+                img = cv.imread(join(self.dataset_dir, ref))
+                img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
+                img = Image.fromarray(img)
+                datapack[ref] = img
         print('Dumping...', end='', flush=True)
         with open(join(self.datapack_path, self.DATAPACK), 'wb') as f:
             pickle.dump(datapack, f)
