@@ -10,12 +10,10 @@ import cv2 as cv
 from PIL import Image
 import pickle
 from pandas import DataFrame
-from torchvision.transforms import Compose, RandomHorizontalFlip
-from .utils import LazyRandomCrop, PatchExtractor
+
 from os.path import join
 from .utils import ensuredir
 from itertools import chain
-
 
 
 class IQADataset(Dataset):
@@ -27,8 +25,9 @@ class IQADataset(Dataset):
     """
     INDEX_TYPE = None
     INDEX_RANGE = None
-    def __init__(self, dataset_dir, n_fold=5, crop_shape=None, random_flip=False,
-                 require_ref=False, n_patch_per_image=1, using_data_pack=False, datapack_path='datapacks',
+    def __init__(self, dataset_dir, n_fold=5,
+                 train_preprocessors=(), eval_preprocessors=(),
+                 require_ref=False, using_data_pack=False, datapack_path='datapacks',
                  metadata_path='metadata', dead_types=None, dead_images=None):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
@@ -37,7 +36,7 @@ class IQADataset(Dataset):
         assert isinstance(n_fold, int) and n_fold >= 2
         self.n_fold = n_fold
         self.i_fold = -1
-        self.use_augment = True # When true, argument transforms will be applied before output.
+        self.use_transforms = True # When true, argument transforms will be applied before output.
         self.require_ref = require_ref
         self.random_cropper = None
         self.metadata_path = metadata_path
@@ -45,7 +44,6 @@ class IQADataset(Dataset):
         self.datapack_path = datapack_path
         self.DATAPACK = self.__class__.__name__ + '.pkl'
         self.datapack = None
-        self.n_patch_per_image = n_patch_per_image
         self.__dead_images = []
         self.__dead_types = []
         if dead_images is not None:
@@ -53,7 +51,11 @@ class IQADataset(Dataset):
         if dead_types is not None:
             self.__dead_types += list(dead_types)
 
-
+        self.preprocessors = {
+            'train': [],
+            'eval': [],
+            'all': []
+        }
 
         self.index_remapped = False
         self.__remap_k = 1
@@ -64,18 +66,6 @@ class IQADataset(Dataset):
             len(self.INDEX_RANGE) == 2 and \
             self.INDEX_RANGE[0] < self.INDEX_RANGE[1], 'Index range error.'
 
-        augment_transforms = []
-        if crop_shape is not None:
-            if self.n_patch_per_image > 1:
-                augment_transforms.append(PatchExtractor(crop_shape, crop_shape, self.n_patch_per_image))
-            elif self.n_patch_per_image == 1:
-                self.random_cropper = LazyRandomCrop(crop_shape)
-                augment_transforms.append(self.random_cropper)
-        if random_flip:
-            augment_transforms.append(RandomHorizontalFlip(p=0.5))
-        
-        self.augment_transforms = Compose(augment_transforms)
-        
         ensuredir(self.metadata_path)
 
         if not os.path.exists(join(self.metadata_path, self.METAFILE)):
@@ -120,9 +110,9 @@ class IQADataset(Dataset):
         assert i >= 0 and i < self.n_fold
         self.i_fold = i
 
-    def train(self, not_on=None, use_augment=True, **kwargs):
+    def train(self, not_on=None, use_transforms=True, **kwargs):
         self._phase = 'train'
-        self.use_augment = use_augment
+        self.use_transforms = use_transforms
         if not_on is None:
             not_on = self.i_fold
 
@@ -130,9 +120,9 @@ class IQADataset(Dataset):
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
 
     
-    def eval(self, use_augment=False, on=None, **kwargs):
+    def eval(self, use_transforms=True, on=None, **kwargs):
         self._phase = 'eval'
-        self.use_augment = use_augment
+        self.use_transforms = use_transforms
         deprecated_images = []
 
         if on is None:
@@ -148,10 +138,22 @@ class IQADataset(Dataset):
                 deprecated_images += item
         self.generate_data_frame(deprecated_images = deprecated_images, **kwargs)
 
-    def all(self, use_augment=False, **kwargs):
+    def all(self, use_transforms=True, **kwargs):
         self._phase = 'all'
-        self.use_augment = use_augment
+        self.use_transforms = use_transforms
         self.generate_data_frame(**kwargs)
+
+
+
+    def add_train_preprocessor(self, preprocessor):
+        self.preprocessors['train'].append(preprocessor)
+
+    def add_eval_preprocessor(self, preprocessor):
+        self.preprocessors['eval'].append(preprocessor)
+
+    def add_all_preprocessor(self, preprocessor):
+        self.preprocessors['all'].append(preprocessor)
+        
 
     def generate_datapack(self):
         datapack = {}
@@ -231,7 +233,7 @@ class IQADataset(Dataset):
             self.__data_frame = self.__data_frame.append(ref_imgs_data_frame, ignore_index=True, sort=False)
 
     @staticmethod
-    def preprocess(img):
+    def to_tensor(img):
         img = img.astype(np.float32)/255.0
         if len(img.shape) == 3:
             img = img.transpose(2, 0, 1)
@@ -259,16 +261,19 @@ class IQADataset(Dataset):
                 img = cv.imread(join(dir, path))
                 img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
                 img = Image.fromarray(img)
-            if self.use_augment:
-                img = self.augment_transforms(img)
+
+            if self.use_transforms:
+                for f in self.preprocessors[self._phase]:
+                    img = f(img)
+
             img = np.array(img)
             return img
         
         img = load_img(self.dataset_dir, meta.DIS_PATH.to_list()[0], self.datapack)
-        img = self.preprocess(img)
+        img = self.to_tensor(img)
         if self.require_ref:
             img_ref = load_img(self.dataset_dir, meta.REF_PATH.to_list()[0], self.datapack)
-            img_ref = self.preprocess(img_ref)
+            img_ref = self.to_tensor(img_ref)
 
 
         label = torch.tensor(meta.INDEX.to_list()[0])

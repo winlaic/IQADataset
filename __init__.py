@@ -7,3 +7,4 @@ from .LIVE2016 import LIVE2016
 from .LIVEChallengeDB import LIVEChallengeDB
 from .CSIQ import CSIQ
 from .utils import calculate_iqa_performace
+from . import Preprocessors
