@@ -11,7 +11,7 @@ from PIL import Image
 import pickle
 from pandas import DataFrame
 from torchvision.transforms import Compose, RandomHorizontalFlip
-from .utils import LazyRandomCrop
+from .utils import LazyRandomCrop, PatchExtractor
 from os.path import join
 from .utils import ensuredir
 from itertools import chain
@@ -28,7 +28,7 @@ class IQADataset(Dataset):
     INDEX_TYPE = None
     INDEX_RANGE = None
     def __init__(self, dataset_dir, n_fold=5, crop_shape=None, random_flip=False,
-                 require_ref=False, using_data_pack=False, datapack_path='datapacks',
+                 require_ref=False, n_patch_per_image=1, using_data_pack=False, datapack_path='datapacks',
                  metadata_path='metadata', dead_types=None, dead_images=None):
         super().__init__()
         self.METAFILE = self.__class__.__name__ + '_metadata.pth'
@@ -45,6 +45,7 @@ class IQADataset(Dataset):
         self.datapack_path = datapack_path
         self.DATAPACK = self.__class__.__name__ + '.pkl'
         self.datapack = None
+        self.n_patch_per_image = n_patch_per_image
         self.__dead_images = []
         self.__dead_types = []
         if dead_images is not None:
@@ -65,10 +66,14 @@ class IQADataset(Dataset):
 
         augment_transforms = []
         if crop_shape is not None:
-            self.random_cropper = LazyRandomCrop(crop_shape)
-            augment_transforms.append(self.random_cropper)
+            if self.n_patch_per_image > 1:
+                augment_transforms.append(PatchExtractor(crop_shape, crop_shape, self.n_patch_per_image))
+            elif self.n_patch_per_image == 1:
+                self.random_cropper = LazyRandomCrop(crop_shape)
+                augment_transforms.append(self.random_cropper)
         if random_flip:
             augment_transforms.append(RandomHorizontalFlip(p=0.5))
+        
         self.augment_transforms = Compose(augment_transforms)
         
         ensuredir(self.metadata_path)
@@ -228,7 +233,10 @@ class IQADataset(Dataset):
     @staticmethod
     def preprocess(img):
         img = img.astype(np.float32)/255.0
-        img = img.transpose(2, 0, 1)
+        if len(img.shape) == 3:
+            img = img.transpose(2, 0, 1)
+        elif len(img.shape) == 4:
+            img = img.transpose(0, 3, 1, 2)
         img = torch.tensor(img)
         return img
 
